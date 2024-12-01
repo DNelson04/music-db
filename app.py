@@ -14,6 +14,27 @@ conn = mysql.connector.connect(
 )
 cursor = conn.cursor()
 
+def create_session(user_id):
+    query = "SELECT user_id FROM UserSessions WHERE user_id = %s"
+    cursor.execute(query, (user_id,))
+    result = cursor.fetchone()
+    if result:
+        query = "DELETE FROM UserSessions WHERE user_id = %s and expires_at < %s"
+        cursor.execute(query, (user_id, datetime.datetime.now()))
+        conn.commit()
+    # Generate a unique session ID
+    session_id = secrets.token_hex(16)
+    keyring.set_password("music_app", "session_id", session_id)
+
+    # Calculate expiration time (e.g., 1 hour from now)
+    expiration_time = datetime.datetime.now() + datetime.timedelta(hours=1)
+
+    # Save session in the database
+    query = "INSERT INTO UserSessions (session_id, user_id, expires_at) VALUES (%s, %s, %s)"
+    cursor.execute(query, (session_id, user_id, expiration_time))
+    conn.commit()
+    return session_id
+
 def validate_session(session_id):
     query = "SELECT user_id, expires_at FROM UserSessions WHERE session_id = %s"
     cursor.execute(query, (session_id,))
@@ -33,29 +54,6 @@ def validate_session(session_id):
     else:
         messagebox.showerror("Invalid session", "Invalid session")
     return None
-
-def create_session(user_id):
-    query = "SELECT user_id FROM UserSessions WHERE user_id = %s"
-    cursor.execute(query, (user_id,))
-    result = cursor.fetchone()
-    if result:
-        query = "DELETE FROM UserSessions WHERE session_id = %s"
-        cursor.execute(query, (user_id,))
-        conn.commit()
-    # Generate a unique session ID
-    session_id = secrets.token_hex(16)
-    keyring.set_password("music_app", "session_id", session_id)
-
-    # Calculate expiration time (e.g., 1 hour from now)
-    expiration_time = datetime.datetime.now() + datetime.timedelta(hours=1)
-
-    # Save session in the database
-    query = "INSERT INTO UserSessions (session_id, user_id, expires_at) VALUES (%s, %s, %s)"
-    cursor.execute(query, (session_id, user_id, expiration_time))
-    conn.commit()
-
-
-    return session_id
 
 def sign_up(signup_username_entry, signup_email_entry, signup_password_entry, verify_password_entry,):
     username = signup_username_entry.get()
@@ -170,7 +168,7 @@ def create_sign_in_frame(root):
 def create_home_frame(root):
     # Main Frame
     home_frame = ttk.Frame(root, padding="10 10 10 10")
-    home_frame.grid(column=0, row=0, sticky=("N, W, E, S"))
+    home_frame.grid(column=0, row=0, sticky="N, W, E, S")
 
     ttk.Label(home_frame, text="Music App Home", font=("Arial", 20)).grid(column=0, row=0, columnspan=2, pady=10)
 
