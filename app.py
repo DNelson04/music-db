@@ -156,14 +156,24 @@ def create_sign_in_frame(panel):
     signin_password_entry = ttk.Entry(frame, width=25, show="*")
     signin_password_entry.grid(column=1, row=1, sticky="W, E")
 
-    sign_in_button = ttk.Button(frame, text="Sign in", command=lambda: sign_in(
-        signin_id_entry,
-        signin_password_entry
-    ))
+    sign_in_button = ttk.Button(frame, text="Sign in", command=lambda: sign_in(signin_id_entry,signin_password_entry))
     sign_in_button.grid(column=1, row=4, pady=5)
     ttk.Button(frame, text="Dont have an account?", command=lambda: signup_frame.tkraise()).grid(column=1, row=2)
 
     return frame
+
+
+def search(search_entry):
+    pass
+
+
+def go_to_playlists():
+    pass
+
+
+def recommendations():
+    pass
+
 
 def create_home_frame(panel):
     # Main Frame
@@ -172,16 +182,12 @@ def create_home_frame(panel):
 
     ttk.Label(frame, text="Music App Home", font=("Arial", 20)).grid(column=0, row=0, columnspan=2, pady=10)
 
-    ttk.Label(frame, text="Password:").grid(column=0, row=1, sticky="W")
-    signin_password_entry = ttk.Entry(frame, width=25, show="*")
-    signin_password_entry.grid(column=1, row=1, sticky="W, E")
-
     # Buttons for functionalities
-    ttk.Button(frame, text="Search Songs").grid(column=0, row=1, padx=10, pady=5)
-    ttk.Button(frame, text="Search Artists").grid(column=1, row=1, padx=10, pady=5)
-    ttk.Button(frame, text="Search Albums" ).grid(column=0, row=2, padx=10, pady=5)
-    ttk.Button(frame, text="Create Playlist").grid(column=1, row=2, padx=10, pady=5)
-    ttk.Button(frame, text="Get Recommendations").grid(column=0, row=3, columnspan=2, pady=10)
+    search_entry = ttk.Entry(frame, width=25)
+    search_entry.grid(column=0, row=1, sticky="W, E")
+    ttk.Button(frame, text="Search App", command= lambda: search(search_entry)).grid(column=1, row=1, padx=10, pady=5)
+    ttk.Button(frame, text="Playlists", command=lambda: go_to_playlists()).grid(column=0, row=2, padx=10, pady=5)
+    ttk.Button(frame, text="Get Recommendations", command= recommendations()).grid(column=0, row=3, columnspan=2, pady=10)
 
     for child in frame.winfo_children():
         child.grid_configure(padx=5, pady=5)
