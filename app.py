@@ -109,30 +109,30 @@ def sign_in(signin_id_entry, signin_password_entry):
         create_session(user_id)
         home_frame.tkraise()
 
-def create_sign_up_frame(root):
-    signup_frame = ttk.Frame(root, padding=" 3 3 12 12")
-    signup_frame.grid(column=0, row=0, sticky="N, W, E, S")
+def create_sign_up_frame(panel):
+    frame = ttk.Frame(panel, padding=" 3 3 12 12")
+    frame.grid(column=0, row=0, sticky="N, W, E, S")
 
-    ttk.Label(signup_frame, text="Username:").grid(column=0, row=0, sticky="W")
-    signup_username_entry = ttk.Entry(signup_frame, width=25)
+    ttk.Label(frame, text="Username:").grid(column=0, row=0, sticky="W")
+    signup_username_entry = ttk.Entry(frame, width=25)
     signup_username_entry.grid(column=1, row=0, sticky="W, E")
 
     # Email input
-    ttk.Label(signup_frame, text="Email:").grid(column=0, row=1, sticky="W")
-    signup_email_entry = ttk.Entry(signup_frame, width=25)
+    ttk.Label(frame, text="Email:").grid(column=0, row=1, sticky="W")
+    signup_email_entry = ttk.Entry(frame, width=25)
     signup_email_entry.grid(column=1, row=1, sticky="W, E")
 
     # Password input
-    ttk.Label(signup_frame, text="Password:").grid(column=0, row=2, sticky="W")
-    signup_password_entry = ttk.Entry(signup_frame, width=25, show="*")
+    ttk.Label(frame, text="Password:").grid(column=0, row=2, sticky="W")
+    signup_password_entry = ttk.Entry(frame, width=25, show="*")
     signup_password_entry.grid(column=1, row=2, sticky="W, E")
 
-    ttk.Label(signup_frame, text="Verify Password:").grid(column=0, row=3, sticky="W")
-    verify_password_entry = ttk.Entry(signup_frame, width=25, show="*")
+    ttk.Label(frame, text="Verify Password:").grid(column=0, row=3, sticky="W")
+    verify_password_entry = ttk.Entry(frame, width=25, show="*")
     verify_password_entry.grid(column=1, row=3, sticky="W, E")
 
     # Sign up button
-    sign_up_button = ttk.Button(signup_frame, text="Sign up", command=lambda: sign_up(
+    sign_up_button = ttk.Button(frame, text="Sign up", command=lambda: sign_up(
             signup_username_entry,
             signup_email_entry,
             signup_password_entry,
@@ -140,49 +140,53 @@ def create_sign_up_frame(root):
         ))
     sign_up_button.grid(column=1, row=4, pady=5)
 
-    ttk.Button(signup_frame, text="Already have an account? Sign in here", command=lambda: signin_frame.tkraise()).grid(
+    ttk.Button(frame, text="Already have an account? Sign in here", command=lambda: signin_frame.tkraise()).grid(
         column=1, row=5)
-    return signup_frame
+    return frame
 
-def create_sign_in_frame(root):
-    signin_frame = ttk.Frame(root, padding=" 3 3 12 12")
-    signin_frame.grid(column=0, row=0, sticky="N, W, E, S")
+def create_sign_in_frame(panel):
+    frame = ttk.Frame(panel, padding=" 3 3 12 12")
+    frame.grid(column=0, row=0, sticky="N, W, E, S")
 
-    ttk.Label(signin_frame, text="Email or Username:").grid(column=0, row=0, sticky="W")
-    signin_id_entry = ttk.Entry(signin_frame, width=25)
+    ttk.Label(frame, text="Email or Username:").grid(column=0, row=0, sticky="W")
+    signin_id_entry = ttk.Entry(frame, width=25)
     signin_id_entry.grid(column=1, row=0, sticky="W, E")
 
-    ttk.Label(signin_frame, text="Password:").grid(column=0, row=1, sticky="W")
-    signin_password_entry = ttk.Entry(signin_frame, width=25, show="*")
+    ttk.Label(frame, text="Password:").grid(column=0, row=1, sticky="W")
+    signin_password_entry = ttk.Entry(frame, width=25, show="*")
     signin_password_entry.grid(column=1, row=1, sticky="W, E")
 
-    sign_in_button = ttk.Button(signin_frame, text="Sign in", command=lambda: sign_in(
+    sign_in_button = ttk.Button(frame, text="Sign in", command=lambda: sign_in(
         signin_id_entry,
         signin_password_entry
     ))
     sign_in_button.grid(column=1, row=4, pady=5)
-    ttk.Button(signin_frame, text="Dont have an account?", command=lambda: signup_frame.tkraise()).grid(column=1, row=2)
+    ttk.Button(frame, text="Dont have an account?", command=lambda: signup_frame.tkraise()).grid(column=1, row=2)
 
-    return signin_frame
+    return frame
 
-def create_home_frame(root):
+def create_home_frame(panel):
     # Main Frame
-    home_frame = ttk.Frame(root, padding="10 10 10 10")
-    home_frame.grid(column=0, row=0, sticky="N, W, E, S")
+    frame = ttk.Frame(panel, padding="10 10 10 10")
+    frame.grid(column=0, row=0, sticky="N, W, E, S")
 
-    ttk.Label(home_frame, text="Music App Home", font=("Arial", 20)).grid(column=0, row=0, columnspan=2, pady=10)
+    ttk.Label(frame, text="Music App Home", font=("Arial", 20)).grid(column=0, row=0, columnspan=2, pady=10)
+
+    ttk.Label(frame, text="Password:").grid(column=0, row=1, sticky="W")
+    signin_password_entry = ttk.Entry(frame, width=25, show="*")
+    signin_password_entry.grid(column=1, row=1, sticky="W, E")
 
     # Buttons for functionalities
-    ttk.Button(home_frame, text="Search Songs").grid(column=0, row=1, padx=10, pady=5)
-    ttk.Button(home_frame, text="Search Artists").grid(column=1, row=1, padx=10, pady=5)
-    ttk.Button(home_frame, text="Search Albums" ).grid(column=0, row=2, padx=10, pady=5)
-    ttk.Button(home_frame, text="Create Playlist").grid(column=1, row=2, padx=10, pady=5)
-    ttk.Button(home_frame, text="Get Recommendations").grid(column=0, row=3, columnspan=2, pady=10)
+    ttk.Button(frame, text="Search Songs").grid(column=0, row=1, padx=10, pady=5)
+    ttk.Button(frame, text="Search Artists").grid(column=1, row=1, padx=10, pady=5)
+    ttk.Button(frame, text="Search Albums" ).grid(column=0, row=2, padx=10, pady=5)
+    ttk.Button(frame, text="Create Playlist").grid(column=1, row=2, padx=10, pady=5)
+    ttk.Button(frame, text="Get Recommendations").grid(column=0, row=3, columnspan=2, pady=10)
 
-    for child in home_frame.winfo_children():
+    for child in frame.winfo_children():
         child.grid_configure(padx=5, pady=5)
 
-    return home_frame
+    return frame
 
 
 # Start the application
