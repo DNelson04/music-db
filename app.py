@@ -15,45 +15,59 @@ conn = mysql.connector.connect(
 cursor = conn.cursor()
 
 def create_session(user_id):
-    query = "SELECT user_id FROM UserSessions WHERE user_id = %s"
-    cursor.execute(query, (user_id,))
-    result = cursor.fetchone()
-    if result:
-        query = "DELETE FROM UserSessions WHERE user_id = %s and expires_at < %s"
-        cursor.execute(query, (user_id, datetime.datetime.now()))
+    try:
+        query = "SELECT user_id FROM UserSessions WHERE user_id = %s"
+        cursor.execute(query, (user_id,))
+        result = cursor.fetchone()
+        if result:
+            query = "DELETE FROM UserSessions WHERE user_id = %s and expires_at < %s"
+            cursor.execute(query, (user_id, datetime.datetime.now()))
+            conn.commit()
+        # Generate a unique session ID
+        session_id = secrets.token_hex(16)
+        keyring.set_password("music_app", "session_id", session_id)
+
+        # Calculate expiration time (e.g., 1 hour from now)
+        expiration_time = datetime.datetime.now() + datetime.timedelta(hours=1)
+
+        # Save session in the database
+        query = "INSERT INTO UserSessions (session_id, user_id, expires_at) VALUES (%s, %s, %s)"
+        cursor.execute(query, (session_id, user_id, expiration_time))
         conn.commit()
-    # Generate a unique session ID
-    session_id = secrets.token_hex(16)
-    keyring.set_password("music_app", "session_id", session_id)
-
-    # Calculate expiration time (e.g., 1 hour from now)
-    expiration_time = datetime.datetime.now() + datetime.timedelta(hours=1)
-
-    # Save session in the database
-    query = "INSERT INTO UserSessions (session_id, user_id, expires_at) VALUES (%s, %s, %s)"
-    cursor.execute(query, (session_id, user_id, expiration_time))
-    conn.commit()
-    return session_id
+        return session_id
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
 
 def validate_session(session_id):
-    query = "SELECT user_id, expires_at FROM UserSessions WHERE session_id = %s"
-    cursor.execute(query, (session_id,))
-    result = cursor.fetchone()
+    try:
+        query = "SELECT user_id, expires_at FROM UserSessions WHERE session_id = %s"
+        cursor.execute(query, (session_id,))
+        result = cursor.fetchone()
 
-    if result:
-        user_id, expires_at = result
-        if datetime.datetime.now() < expires_at:
-            return user_id  # Session is valid
+        if result:
+            user_id, expires_at = result
+            if datetime.datetime.now() < expires_at:
+                return user_id  # Session is valid
+            else:
+                query = "DELETE FROM UserSessions WHERE session_id = %s"
+                cursor.execute(query, (session_id,))
+                conn.commit()
+                keyring.delete_password("music_app", "session_id")
+                messagebox.showinfo("Logged out", "Your session has expired. Please sign in again.")
+                signin_frame.tkraise()
         else:
-            query = "DELETE FROM UserSessions WHERE session_id = %s"
-            cursor.execute(query, (session_id,))
-            conn.commit()
-            keyring.delete_password("music_app", "session_id")
-            messagebox.showinfo("Logged out", "Your session has expired. Please sign in again.")
-            signin_frame.tkraise()
-    else:
-        messagebox.showerror("Invalid session", "Invalid session")
-    return None
+            messagebox.showerror("Invalid session", "Invalid session")
+        return
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
 
 def sign_up(signup_username_entry, signup_email_entry, signup_password_entry, verify_password_entry,):
     username = signup_username_entry.get()
@@ -90,24 +104,31 @@ def sign_up(signup_username_entry, signup_email_entry, signup_password_entry, ve
         messagebox.showerror("Database Error", f"Error adding user: {e}")
 
 def sign_in(signin_id_entry, signin_password_entry):
-    id = signin_id_entry.get()
-    password_attempt = signin_password_entry.get()
-    if "@" in id:  # A simple heuristic for emails
-        query = "SELECT user_id, hashed_password FROM Users WHERE email = %s"
-    else:
-        query = "SELECT user_id, hashed_password FROM Users WHERE username = %s"
-    cursor.execute(query, (id,))
-    result = cursor.fetchone()
+    try:
+        id = signin_id_entry.get()
+        password_attempt = signin_password_entry.get()
+        if "@" in id:  # A simple heuristic for emails
+            query = "SELECT user_id, hashed_password FROM Users WHERE email = %s"
+        else:
+            query = "SELECT user_id, hashed_password FROM Users WHERE username = %s"
+        cursor.execute(query, (id,))
+        result = cursor.fetchone()
 
-    if result is None:
-        messagebox.showerror("User Not Found.", f"User Not Found")
+        if result is None:
+            messagebox.showerror("User Not Found.", f"User Not Found")
+            return
+
+        user_id, hashed_pw = result
+
+        if bcrypt.checkpw(password_attempt.encode(), hashed_pw.encode()):
+            create_session(user_id)
+            home_frame.tkraise()
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
         return
-
-    user_id, hashed_pw = result
-
-    if bcrypt.checkpw(password_attempt.encode(), hashed_pw.encode()):
-        create_session(user_id)
-        home_frame.tkraise()
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
 
 def create_sign_up_frame(panel):
     frame = ttk.Frame(panel, padding=" 3 3 12 12")
@@ -164,8 +185,34 @@ def create_sign_in_frame(panel):
 
 
 def search(search_entry):
-    pass
-
+    """so when i search, i need to look through track, albums and artists, and return a list of all the results, preferrably in popularity order. so, the easiest way ik how to do this would be to
+    convert all info to json format and return it as a json object, with structure; response[responseinfo, responseObjects]"""
+    try:
+        # SQL query to search across artists, albums, and tracks
+        sql_query = """
+            SELECT 'artist' AS object_type, artist_id AS id, name AS title, popularity
+            FROM Artists
+            WHERE name LIKE CONCAT('%', %s, '%')
+            UNION
+            SELECT 'album' AS object_type, album_id AS id, title, popularity
+            FROM Albums
+            WHERE title LIKE CONCAT('%', %s, '%')
+            UNION
+            SELECT 'track' AS object_type, track_id AS id, title, popularity
+            FROM Tracks
+            WHERE title LIKE CONCAT('%', %s, '%')
+            ORDER BY popularity DESC;
+            """
+        cursor.execute(sql_query, (search_entry, search_entry, search_entry))
+        results = cursor.fetchall()
+        print(results)
+        return results
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
 
 def go_to_playlists():
     pass
