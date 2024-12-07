@@ -1,6 +1,7 @@
 import datetime
 import secrets
 import tkinter as tk
+from collections import defaultdict
 from tkinter import ttk, messagebox
 import mysql.connector
 import bcrypt
@@ -8,7 +9,7 @@ import keyring
 
 conn = mysql.connector.connect(
     host="localhost",
-    user="root",
+    user="pyapp",
     password="Lushane27#01",
     database="music_db"
 )
@@ -18,10 +19,10 @@ def create_session(user_id):
     try:
         query = "SELECT user_id FROM UserSessions WHERE user_id = %s"
         cursor.execute(query, (user_id,))
-        result = cursor.fetchone()
+        result = cursor.fetchall()
         if result:
-            query = "DELETE FROM UserSessions WHERE user_id = %s and expires_at < %s"
-            cursor.execute(query, (user_id, datetime.datetime.now()))
+            query = "DELETE FROM UserSessions WHERE user_id = %s"
+            cursor.execute(query, (user_id,))
             conn.commit()
         # Generate a unique session ID
         session_id = secrets.token_hex(16)
@@ -94,8 +95,8 @@ def sign_up(signup_username_entry, signup_email_entry, signup_password_entry, ve
         # Hash the password and save user
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(password.encode(), salt)
-        query = "INSERT INTO Users (username, email, hashed_password, salt) VALUES (%s, %s, %s, %s)"
-        cursor.execute(query, (username, email, hashed_password, salt))
+        query = "INSERT INTO Users (username, email, hashed_password) VALUES (%s, %s, %s)"
+        cursor.execute(query, (username, email, hashed_password))
         conn.commit()
         messagebox.showinfo("Success", "User added successfully!")
         signin_frame.tkraise()
@@ -129,6 +130,146 @@ def sign_in(signin_id_entry, signin_password_entry):
     except Exception as e:
         print(f"Unexpected error: {e}")
         return
+
+def search(search_entry):
+    """so when i search, i need to look through track, albums and artists, and return a list of all the results, preferrably in popularity order. so, the easiest way ik how to do this would be to
+    convert all info to json format and return it as a json object, with structure; response[responseinfo, responseObjects]"""
+    search_entry = search_entry.get()
+    try:
+        # SQL query to search across artists, albums, and tracks
+        query = """
+            SELECT 
+                'artist' AS object_type, 
+                a.artist_id AS id, 
+                a.name AS title, 
+                NULL AS album_id,
+                NULL AS album_title,
+                NULL AS artist_id,
+                NULL AS artist_name,
+                a.popularity
+            FROM Artists a
+            WHERE a.name LIKE CONCAT('%', %s, '%')
+
+            UNION
+
+            SELECT 
+                'album' AS object_type, 
+                al.album_id AS id, 
+                al.title AS title, 
+                al.album_id AS album_id,
+                al.title AS album_title,
+                al.artist_id AS artist_id, 
+                a.name AS artist_name, 
+                al.popularity
+            FROM Albums al
+            JOIN Artists a ON al.artist_id = a.artist_id
+            WHERE al.title LIKE CONCAT('%', %s, '%')
+
+            UNION
+
+            SELECT 
+                'track' AS object_type, 
+                t.track_id AS id, 
+                t.title AS title, 
+                t.album_id AS album_id, 
+                al.title AS album_title,
+                a.artist_id AS artist_id,
+                a.name AS artist_name,
+                t.popularity
+            FROM Tracks t
+            JOIN Albums al ON t.album_id = al.album_id
+            JOIN Artists a ON t.artist_id = a.artist_id
+            WHERE t.title LIKE CONCAT('%', %s, '%')
+
+            ORDER BY popularity DESC;
+        """
+        cursor.execute(query, (search_entry, search_entry, search_entry))
+        results = cursor.fetchall()
+        for item in results:
+            print(item)
+        return results
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
+
+def open_playlist(pid):
+    try:
+        query = """
+            SELECT 
+                p.name AS playlist_name,
+                t.track_id,
+                t.title,
+                t.album_id,
+                t.artist_id,
+                t.release_date,
+                t.popularity
+            FROM 
+                playlists p
+            JOIN 
+                playlist_tracks pt ON p.playlist_id = pt.playlist_id
+            JOIN 
+                tracks t ON pt.track_id = t.track_id
+            WHERE 
+                p.playlist_id = %s
+        """
+        cursor.execute(query, (pid,))
+        results = cursor.fetchall()
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
+
+def go_to_playlists():
+    playlists_frame.tkraise()
+    update_playlists()
+
+def populate_playlist_frame(results):
+    for widget in playlists_frame.winfo_children():
+        widget.destroy()
+
+        # Add a heading
+    ttk.Label(playlists_frame, text="Your Playlists", font=("Arial", 16)).grid(column=0, row=0, pady=10)
+
+    # Dynamically create widgets for each playlist
+    for idx, (playlist_id, playlist_name) in enumerate(results, start=1):
+        # Display playlist name
+        ttk.Label(playlists_frame, text=playlist_name, font=("Arial", 12)).grid(column=0, row=idx, sticky="W", padx=10,
+                                                                                pady=5)
+
+        # Add a button for actions (e.g., view or edit)
+        ttk.Button(
+            playlists_frame,
+            text="View",
+            command=lambda pid=playlist_id: open_playlist(pid)  # Pass playlist_id to function
+        ).grid(column=1, row=idx, padx=10, pady=5)
+
+def update_playlists():
+    session_id = keyring.get_password("music_app", "session_id")
+    print(session_id)
+    try:
+        user_id = validate_session(session_id)
+        query = "SELECT playlist_id, name FROM Playlists WHERE user_id = %s"
+        cursor.execute(query, (user_id,))
+        results = cursor.fetchall()
+        populate_playlist_frame(results)
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
+
+
+def create_playlists_frame(panel):
+    frame = ttk.Frame(panel, padding = "10 10 10 10")
+    frame.grid(column=0, row=0, sticky="N, W, E, S")
+    return frame
 
 def create_sign_up_frame(panel):
     frame = ttk.Frame(panel, padding=" 3 3 12 12")
@@ -183,45 +324,6 @@ def create_sign_in_frame(panel):
 
     return frame
 
-
-def search(search_entry):
-    """so when i search, i need to look through track, albums and artists, and return a list of all the results, preferrably in popularity order. so, the easiest way ik how to do this would be to
-    convert all info to json format and return it as a json object, with structure; response[responseinfo, responseObjects]"""
-    try:
-        # SQL query to search across artists, albums, and tracks
-        sql_query = """
-            SELECT 'artist' AS object_type, artist_id AS id, name AS title, popularity
-            FROM Artists
-            WHERE name LIKE CONCAT('%', %s, '%')
-            UNION
-            SELECT 'album' AS object_type, album_id AS id, title, popularity
-            FROM Albums
-            WHERE title LIKE CONCAT('%', %s, '%')
-            UNION
-            SELECT 'track' AS object_type, track_id AS id, title, popularity
-            FROM Tracks
-            WHERE title LIKE CONCAT('%', %s, '%')
-            ORDER BY popularity DESC;
-            """
-        cursor.execute(sql_query, (search_entry, search_entry, search_entry))
-        results = cursor.fetchall()
-        print(results)
-        return results
-    except mysql.connector.Error as err:
-        print(f"Database error: {err}")
-        return
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        return
-
-def go_to_playlists():
-    pass
-
-
-def recommendations():
-    pass
-
-
 def create_home_frame(panel):
     # Main Frame
     frame = ttk.Frame(panel, padding="10 10 10 10")
@@ -234,7 +336,6 @@ def create_home_frame(panel):
     search_entry.grid(column=0, row=1, sticky="W, E")
     ttk.Button(frame, text="Search App", command= lambda: search(search_entry)).grid(column=1, row=1, padx=10, pady=5)
     ttk.Button(frame, text="Playlists", command=lambda: go_to_playlists()).grid(column=0, row=2, padx=10, pady=5)
-    ttk.Button(frame, text="Get Recommendations", command= recommendations()).grid(column=0, row=3, columnspan=2, pady=10)
 
     for child in frame.winfo_children():
         child.grid_configure(padx=5, pady=5)
@@ -252,7 +353,7 @@ if __name__ == "__main__":
     signin_frame = create_sign_in_frame(root)
     signup_frame = create_sign_up_frame(root)
     home_frame = create_home_frame(root)
-
+    playlists_frame = create_playlists_frame(root)
     signin_frame.tkraise()
 
     root.mainloop()
