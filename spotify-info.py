@@ -69,13 +69,24 @@ def save_track(track, album_id, release_date, popularity, artist_id):
 
 # Fetch top 100 artists
 def fetch_top_artists():
-    results = sp.search(q='genre:pop', type='artist', limit=50)
-    artists = results['artists']['items']
+    playlist_id = "37i9dQZF1DXbJMiQ53rTyJ"  
+    results = sp.playlist_items(playlist_id, additional_types=('track',))
+    tracks = results['items']
+
+    # Extract unique artists from the playlist tracks
+    artist_ids = []
+    for item in tracks:
+        track = item['track']
+        if track:
+            for artist in track['artists']:
+                artist_ids.append(artist['id'])
+
+    artists = sp.artists(artist_ids)
 
     # Process each artist
-    for artist in artists:
+    for artist in artists['artists']:  # Iterate over artist_id and artist object
         save_artist(artist)
-        popularity = artist['popularity']
+        popularity = artist.get('popularity', 0)  # Use .get to avoid KeyError
         fetch_albums(artist['id'], popularity)
 
 

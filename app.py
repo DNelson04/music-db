@@ -209,7 +209,7 @@ def open_playlist(pid):
             FROM 
                 playlists p
             JOIN 
-                playlist_tracks pt ON p.playlist_id = pt.playlist_id
+                playlistTracks pt ON p.playlist_id = pt.playlist_id
             JOIN 
                 tracks t ON pt.track_id = t.track_id
             WHERE 
@@ -217,6 +217,7 @@ def open_playlist(pid):
         """
         cursor.execute(query, (pid,))
         results = cursor.fetchall()
+        print(results)
 
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
@@ -229,6 +230,9 @@ def go_to_playlists():
     playlists_frame.tkraise()
     update_playlists()
 
+def add_to_playlist(track_id, playlist_id):
+
+
 def populate_playlist_frame(results):
     for widget in playlists_frame.winfo_children():
         widget.destroy()
@@ -239,15 +243,9 @@ def populate_playlist_frame(results):
     # Dynamically create widgets for each playlist
     for idx, (playlist_id, playlist_name) in enumerate(results, start=1):
         # Display playlist name
-        ttk.Label(playlists_frame, text=playlist_name, font=("Arial", 12)).grid(column=0, row=idx, sticky="W", padx=10,
-                                                                                pady=5)
-
+        ttk.Label(playlists_frame, text=playlist_name, font=("Arial", 12)).grid(column=0, row=idx, sticky="W", padx=10, pady=5)
         # Add a button for actions (e.g., view or edit)
-        ttk.Button(
-            playlists_frame,
-            text="View",
-            command=lambda pid=playlist_id: open_playlist(pid)  # Pass playlist_id to function
-        ).grid(column=1, row=idx, padx=10, pady=5)
+        ttk.Button(playlists_frame, text="View", command=lambda pid=playlist_id: open_playlist(pid)).grid(column=1, row=idx, padx=10, pady=5)
 
 def update_playlists():
     session_id = keyring.get_password("music_app", "session_id")
