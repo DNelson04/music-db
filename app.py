@@ -160,6 +160,8 @@ def search(search_entry):
     """so when i search, i need to look through track, albums and artists, and return a list of all the results, preferrably in popularity order. so, the easiest way ik how to do this would be to
     convert all info to json format and return it as a json object, with structure; response[responseinfo, responseObjects]"""
     search_entry = search_entry.get()
+    if search_entry is None:
+        return
     try:
         # SQL query to search across artists, albums, and tracks
         query = """
@@ -224,27 +226,101 @@ def search(search_entry):
         return
 
 def search_results(results):
+    def truncate_text(text, max_length=30):
+        if len(text) > max_length:
+            return text[:max_length] + "..."
+        return text
+
     for widget in search_results_frame.scrollable_frame.winfo_children():
         widget.destroy()
 
     search_entry = ttk.Entry(search_results_frame.scrollable_frame, width=10)
     search_entry.grid(column=0, row=0, sticky="W")
-    ttk.Button(search_results_frame.scrollable_frame, text="Search App", command=lambda: search(search_entry)).grid(column=1, row=0, padx=10, pady=5)
+    ttk.Button(search_results_frame.scrollable_frame, text="Search", command=lambda: search(search_entry)).grid(column=1, row=0, padx=10, pady=5, sticky="W")
     ttk.Button(search_results_frame.scrollable_frame, text="Back to Home", command=lambda: go_home()).grid(column=2, row=0, padx=10, pady=5, sticky="W")
     ttk.Label(search_results_frame.scrollable_frame, text="Results", font=("Arial", 20)).grid(column=0, row=1, columnspan=2, pady=10, sticky="W")
 
     for index, (type, id, title, album_id, album_title, artist_id, artist_name, popularity) in enumerate(results, start=2):
-        ttk.Label(search_results_frame.scrollable_frame, text=title, font=("Arial", 12)).grid(column=0, row=index * 2, sticky="W")
+        ttk.Label(search_results_frame.scrollable_frame, text=truncate_text(title, 30), font=("Arial", 12)).grid(column=0, row=index * 2, sticky="W")
         ttk.Label(search_results_frame.scrollable_frame, text=artist_name, font=("Arial", 8)).grid(column=0, row=index * 2 + 1, sticky="W")
         ttk.Button(search_results_frame.scrollable_frame, text="Add to Playlist", command=partial(add_to_what_playlist, id)).grid(column=1, row=index * 2, sticky="W")
         search_results_frame.tkraise()
-def view_track():
-    pass
-def view_artist():
-    pass
+def view_album(track_id):
+    for widget in playlists_frame.scrollable_frame.winfo_children():
+        widget.destroy()
+    try:
+        query = """
+            SELECT 
+                albums.album_id,
+                albums.title,
+                tracks.track_id,
+                tracks.title,
+                tracks.artist_id,
+                artists.name
+                FROM 
+                    albums
+                JOIN 
+                    tracks ON albums.album_id = tracks.album_id
+                JOIN
+                    artists ON tracks.artist_id = artists.artist_id
+                WHERE 
+                    albums.album_id = (
+                        SELECT album_id 
+                        FROM tracks 
+                        WHERE track_id = %s
+                    )
+                ORDER BY 
+                    albums.album_id, tracks.track_id;
+        """
+        cursor.execute(query, (track_id,))
+        results = cursor.fetchall()
+        '''album_id, album_title, track_id, track_title, artist_id, artist_name'''
+        ttk.Label(album_frame.scrollable_frame, text=results[1], font=("Arial", 12)).grid(row=0, column=0, sticky="W")
+        ttk.Button(album_frame.scrollable_frame, text="Home", command=lambda:go_home()).grid(row=0, column=1,sticky="W")
+        for index, tracks in enumerate(results, start=1):
+            ttk.Label(album_frame.scrollable_frame, text=results[3], font=("Arial", 10)).grid(row=index*2, column=0)
+            ttk.Label(album_frame.scrollable_frame, text=results[5], font=("Arial", 7)).grid(row=index*2+1, column=0)
+            ttk.Button(album_frame.scrollable_frame, text="View Artist", command=partial(view_artist, results[4])).grid(row=index*2+1, column=1)
+        album_frame.tkraise()
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
+def view_artist(artist_id):
+    for widget in artist_frame.scrollable_frame.winfo_children():
+        widget.destroy()
+    try:
+        query = """
+            SELECT
+                artists.artist_id,
+                artists.name,
+                albums.album_id,
+                albums.title
+            From 
+                artists
+            JOIN albums ON artists.artist_id = albums.artist_id
+            WHERE artists.artist_id = %s
+            ORDER BY albums.popularity desc
+        """
+        cursor.execute(query, (artist_id,))
+        results = cursor.fetchall()
+        ttk.Label(artist_frame.scrollable_frame, text=results[1], font=("Arial", 12)).grid(row=0, column=0, sticky="W")
+        ttk.Button(artist_frame.scrollable_frame, text="Home", command=lambda: go_home()).grid(row=0, column=1, sticky="W")
+        for index, albums in enumerate(results, start=1):
+            ttk.Label(artist_frame.scrollable_frame, text=results[3], font=("Arial", 10)).grid(row=index, column=0)
+            ttk.Button(artist_frame.scrollable_frame, text="View Album", command=partial(view_artist, results[2])).grid(row=index, column=1)
+        artist_frame.tkraise()
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
 def populate_playlist_frame(results):
     "results = {playlist_name, track_id, title, artist_name, artist_id}"
-    for widget in playlists_frame.winfo_children():
+    for widget in playlists_frame.scrollable_frame.winfo_children():
         widget.destroy()
 
     ttk.Label(playlist_frame.scrollable_frame, text=results[0][0], font=("Arial", 20)).grid(row=0,column=0)
@@ -252,8 +328,8 @@ def populate_playlist_frame(results):
     for index, result in enumerate(results, start=1):
         ttk.Label(playlist_frame.scrollable_frame, text=result[2], font=("Arial", 10)).grid(row=index*2,column=0, sticky="W")
         ttk.Label(playlist_frame.scrollable_frame, text=result[3], font=("Arial", 7)).grid(row=index*2+1, column=0, sticky="W")
-        ttk.Button(playlist_frame.scrollable_frame, text="View Song", command=partial(view_track, (result[1]))).grid(row=index*2,column=1, sticky="W")
-        ttk.Button(playlist_frame.scrollable_frame, text="View Artists", command=partial(view_artist, result[4])).grid(row=index*2+1,column=1, sticky="W")
+        ttk.Button(playlist_frame.scrollable_frame, text="View Song", command=partial(view_album, (result[1]))).grid(row=index*2,column=1, sticky="W")
+        ttk.Button(playlist_frame.scrollable_frame, text="View Artist", command=partial(view_artist, result[4])).grid(row=index*2+1,column=1, sticky="W")
 
 def open_playlist(pid):
     print(f"opening playlist {pid}")
@@ -288,8 +364,30 @@ def open_playlist(pid):
         print(f"Unexpected error: {e}")
         return
 
-def create_new_playlist(name):
-    pass
+def create_new_playlist():
+
+    def on_select(playlist_name):
+        session_id = keyring.get_password("music_app", "session_id")
+        user_id = validate_session(session_id)
+        for playlist in get_playlists():
+            if playlist[1] == playlist_name:
+                messagebox.showerror("Duplicate Playlist", "A playlist with this name already exists.")
+                return
+        query = """
+            INSERT INTO playlists (name, user_id) VALUES (%s, %s)
+        """
+        cursor.execute(query, (playlist_name, user_id))
+        conn.commit()
+    popup = tk.Toplevel()
+    popup.title("Enter Playlist Name")
+
+    tk.Label(popup, text="Enter a name for your playlist:").grid(row=0, column=0)
+    playlist_name = tk.Entry(popup, width=25)
+    tk.Button(popup, text="Confirm", command=lambda: on_select(playlist_name)).pack(pady=10)
+
+    popup.transient(root)  # Make the popup modal
+    popup.grab_set()
+    root.wait_window(popup)
 
 def add_to_what_playlist(track_id):
     playlists = get_playlists()
@@ -329,7 +427,7 @@ def add_to_playlist(track_id, playlist_id):
             query = "INSERT INTO playlistTracks (playlist_id, track_id) VALUES (%s, %s)"
             cursor.execute(query, (playlist_id, track_id))
             conn.commit()
-            print("playlist added")
+            messagebox.showinfo("Playlist Added")
         except mysql.connector.Error as err:
             print(f"Database error: {err}")
             return
@@ -338,19 +436,19 @@ def add_to_playlist(track_id, playlist_id):
             return
 
 def populate_playlists_frame(results):
-    for widget in playlists_frame.winfo_children():
+    for widget in playlists_frame.scrollable_frame.winfo_children():
         widget.destroy()
 
         # Add a heading
-    ttk.Label(playlists_frame, text="Your Playlists", font=("Arial", 16)).grid(column=0, row=0, pady=10)
-    ttk.Button(playlists_frame, text="New Playlist", command=lambda:create_new_playlist())
+    ttk.Label(playlists_frame.scrollable_frame, text="Your Playlists", font=("Arial", 16)).grid(column=0, row=0, pady=10)
+    ttk.Button(playlists_frame.scrollable_frame, text="New Playlist", command=lambda:create_new_playlist())
     # Dynamically create widgets for each playlist
     for index, (playlist_id, playlist_name) in enumerate(results, start=1):
         # Display playlist name
-        ttk.Label(playlists_frame, text=playlist_name, font=("Arial", 12)).grid(column=0, row=index, sticky="W", padx=10, pady=5)
+        ttk.Label(playlists_frame.scrollable_frame, text=playlist_name, font=("Arial", 12)).grid(column=0, row=index, sticky="W", padx=10, pady=5)
         # Add a button for actions (e.g., view or edit)
-        ttk.Button(playlists_frame, text="View", command=partial(open_playlist, playlist_id)).grid(column=1, row=index, padx=10, pady=5)
-    ttk.Button(playlists_frame, text="Back to Home", command=lambda:go_home()).grid(column=0, row=len(results)+1, pady=10)
+        ttk.Button(playlists_frame.scrollable_frame, text="View", command=partial(open_playlist, playlist_id)).grid(column=1, row=index, padx=10, pady=5)
+    ttk.Button(playlists_frame.scrollable_frame, text="Back to Home", command=lambda:go_home()).grid(column=0, row=len(results)+1, pady=10)
 def get_playlists():
     session_id = keyring.get_password("music_app", "session_id")
     try:
@@ -368,10 +466,14 @@ def get_playlists():
 
 def go_to_playlists():
     session_id = keyring.get_password("music_app", "session_id")
-    if session_id:
-        playlists_frame.tkraise()
+
+    if validate_session(session_id):
         results = get_playlists()
+        print("got results")
         populate_playlists_frame(results)
+        print("frame populated")
+        playlists_frame.tkraise()
+        print("tkraised")
 
 def go_home():
     session_id = keyring.get_password("music_app", "session_id")
@@ -399,11 +501,6 @@ def go_to_sign_up():
 
 def create_playlist_frame(panel):
     frame = ttk.Frame(panel, padding="10 10 10 10")
-    frame.grid(column=0, row=0, sticky="N, W, E, S")
-    return frame
-
-def create_playlists_frame(panel):
-    frame = ttk.Frame(panel, padding = "10 10 10 10")
     frame.grid(column=0, row=0, sticky="N, W, E, S")
     return frame
 
@@ -482,18 +579,23 @@ def create_home_frame(panel):
 # Start the application
 if __name__ == "__main__":
     root = tk.Tk()
-    root.geometry("400x300")
+    root.geometry("700x500")
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
 
     signin_frame = create_sign_in_frame(root)
     signup_frame = create_sign_up_frame(root)
     home_frame = create_home_frame(root)
-    playlists_frame = create_playlists_frame(root)
+    playlists_frame = ScrollableFrame(root)
+    playlists_frame.grid(row=0, column=0, sticky="nsew")
     search_results_frame = ScrollableFrame(root)
     search_results_frame.grid(row=0, column=0, sticky="nsew")
-    playlist_frame = (ScrollableFrame(root))
+    playlist_frame = ScrollableFrame(root)
     playlist_frame.grid(row=0, column=0, sticky="nsew")
+    album_frame = ScrollableFrame(root)
+    album_frame.grid(row=0, column=0, sticky="nsew")
+    artist_frame = ScrollableFrame(root)
+    artist_frame.grid(row=0, column=0, sticky="nsew")
     signin_frame.tkraise()
 
     root.mainloop()
