@@ -16,8 +16,8 @@ DB_NAME = 'music_db'
 
 # Connect to Spotify API
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id="dea4914974684bfb8d669ab4a488a7eb",
-    client_secret="6e367e4ba39644a2bde8561d221ed2d4"
+    client_id="",
+    client_secret=""
 ))
 
 # Connect to the database
